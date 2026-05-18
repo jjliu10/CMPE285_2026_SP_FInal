@@ -38,6 +38,7 @@ const voted = new Set();                 // itemIds the user has voted on
 const myChoices = new Map();             // itemId → 'yes' | 'no'
 const wavedSet = new Set();              // itemIds the user has waved at this session
 let lastResults = [];                    // last /api/results rows (for the modal)
+let myProfileId = null;                  // id of the viewer's own published profile (or null)
 let currentSort = 'top';
 let searchQuery = '';
 let authMode = 'login';   // 'login' | 'register'
@@ -129,6 +130,7 @@ function clearAuth() {
   itemsById.clear();
   items = [];
   lastResults = [];
+  myProfileId = null;
 }
 
 document.querySelectorAll('.auth-tab').forEach(t =>
@@ -230,6 +232,7 @@ async function bootstrapApp() {
     items = itemsRes.items || [];
     items.forEach(it => itemsById.set(it.id, it));
     (myRes.votes || []).forEach(v => { voted.add(v.itemId); myChoices.set(v.itemId, v.choice); });
+    myProfileId = profileRes.profile ? profileRes.profile.id : null;
     setUserAvatar(profileRes.profile);
     renderDeck();
   } catch (e) {
@@ -483,14 +486,18 @@ const modalWaveOK     = document.getElementById('profile-wave-confirm');
 let modalCurrentId    = null;
 
 function openProfile(itemId) {
+  // The viewer's own profile is intentionally excluded from /api/items (so they
+  // can't vote on themselves), which means itemsById won't have it. /api/results
+  // includes every item, so we fall back to the last results row.
   const item   = itemsById.get(itemId);
   const result = lastResults.find(r => r.id === itemId);
-  if (!item) return;
+  const data   = item || result;
+  if (!data) return;
   modalCurrentId = itemId;
 
-  modalAvatar.src      = item.imageUrl;
-  modalName.textContent = item.name;
-  modalDesc.textContent = item.description || '';
+  modalAvatar.src       = data.imageUrl;
+  modalName.textContent = data.name;
+  modalDesc.textContent = (item && item.description) || (result && result.description) || '';
 
   const pct   = result ? result.yesPct : 0;
   const yes   = result ? result.yes    : 0;
@@ -499,19 +506,27 @@ function openProfile(itemId) {
   modalYes.textContent = yes;
   modalNo.textContent  = no;
 
+  const isSelf = itemId === myProfileId;
   const choice = myChoices.get(itemId);
-  modalYourVote.innerHTML = choice
-    ? `Your vote: <span class="pill ${choice}">${choice.toUpperCase()}</span>`
-    : `You haven't voted on this one yet.`;
+  modalYourVote.innerHTML = isSelf
+    ? `This is your profile — others are voting on you.`
+    : choice
+      ? `Your vote: <span class="pill ${choice}">${choice.toUpperCase()}</span>`
+      : `You haven't voted on this one yet.`;
 
-  if (wavedSet.has(itemId)) {
-    modalWaveBtn.disabled    = true;
-    modalWaveBtn.textContent = 'Wave sent';
-    modalWaveOK.classList.remove('hidden');
-  } else {
-    modalWaveBtn.disabled    = false;
-    modalWaveBtn.textContent = 'Send a wave 👋';
-    modalWaveOK.classList.add('hidden');
+  // Hide the wave affordance on the viewer's own profile — waving at yourself
+  // is nonsense.
+  modalWaveBtn.hidden = isSelf;
+  modalWaveOK.classList.add('hidden');
+  if (!isSelf) {
+    if (wavedSet.has(itemId)) {
+      modalWaveBtn.disabled    = true;
+      modalWaveBtn.textContent = 'Wave sent';
+      modalWaveOK.classList.remove('hidden');
+    } else {
+      modalWaveBtn.disabled    = false;
+      modalWaveBtn.textContent = 'Send a wave 👋';
+    }
   }
 
   modal.classList.remove('hidden');

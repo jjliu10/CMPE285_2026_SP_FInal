@@ -63,7 +63,7 @@ const q = {
 
   aggregate:      db.prepare(`
     SELECT
-      i.id, i.name, i.image_url AS imageUrl,
+      i.id, i.name, i.description, i.image_url AS imageUrl,
       COALESCE(SUM(CASE WHEN v.choice = 'yes' THEN 1 ELSE 0 END), 0) AS yes,
       COALESCE(SUM(CASE WHEN v.choice = 'no'  THEN 1 ELSE 0 END), 0) AS no,
       COALESCE(COUNT(v.choice), 0)                                  AS total
@@ -233,14 +233,15 @@ app.get('/api/results', authOptional, (req, res) => {
     : new Set();
 
   let rows = q.aggregate.all().map(r => ({
-    id:       r.id,
-    name:     r.name,
-    imageUrl: r.imageUrl,
-    yes:      r.yes,
-    no:       r.no,
-    total:    r.total,
-    yesPct:   r.total === 0 ? 0 : Math.round((r.yes / r.total) * 100),
-    mine:     myYes.has(r.id)
+    id:          r.id,
+    name:        r.name,
+    description: r.description || '',
+    imageUrl:    r.imageUrl,
+    yes:         r.yes,
+    no:          r.no,
+    total:       r.total,
+    yesPct:      r.total === 0 ? 0 : Math.round((r.yes / r.total) * 100),
+    mine:        myYes.has(r.id)
   }));
 
   switch (sort) {
