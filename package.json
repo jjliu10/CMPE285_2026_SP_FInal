@@ -1,0 +1,19 @@
+{
+  "name": "swipematch",
+  "version": "1.1.0",
+  "private": true,
+  "description": "SwipeMatch — a mobile-first swipe-to-vote web app with real user accounts (CMPE 285 final).",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server/server.js",
+    "seed": "node server/seed.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.5.0",
+    "express": "^4.21.1"
+  }
+}

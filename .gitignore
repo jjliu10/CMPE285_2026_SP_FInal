@@ -1,0 +1,5 @@
+node_modules/
+data/swipematch.db*
+.DS_Store
+*.log
+.env
