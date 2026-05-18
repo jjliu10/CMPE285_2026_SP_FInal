@@ -144,11 +144,15 @@ authForm.addEventListener('submit', async (e) => {
   authSubmit.disabled = true;
   const username = document.getElementById('auth-username').value.trim();
   const password = document.getElementById('auth-password').value;
+  const wasRegistering = authMode === 'register';
   try {
     const r = await api('POST', `/api/${authMode}`, { username, password });
     saveAuth(r.token, r.username);
     showApp();
     await bootstrapApp();
+    // First-time users are nudged into the profile editor immediately so they
+    // join the deck right away. They can still close it without saving.
+    if (wasRegistering) openProfileEditor({ welcome: true });
   } catch (err) {
     authError.textContent = err.message || 'Something went wrong.';
   } finally {
@@ -587,7 +591,7 @@ editModal.addEventListener('click', (e) => {
   if (e.target.dataset.modalClose !== undefined) editModal.classList.add('hidden');
 });
 
-async function openProfileEditor() {
+async function openProfileEditor({ welcome = false } = {}) {
   editError.textContent = '';
   let profile = null;
   try {
@@ -603,11 +607,24 @@ async function openProfileEditor() {
     editDeleteBtn.hidden = false;
   } else {
     hasPublishedProfile = false;
-    nameInput.value     = '';
+    // First-time setup: prefill the display name with their username so they
+    // only have to add an age / tweak it instead of typing from scratch.
+    nameInput.value     = welcome && user ? user : '';
     descInput.value     = '';
     selectedAvatar      = null;
     editDeleteBtn.hidden = true;
   }
+
+  const titleEl = document.getElementById('profile-edit-title');
+  const subEl   = editModal.querySelector('.modal-sub');
+  if (welcome && !profile) {
+    titleEl.textContent = `Welcome, ${user || ''} — set up your profile`;
+    subEl.textContent   = "Pick an avatar, write a quick blurb, and you're in the deck. You can also skip and add it later from the menu.";
+  } else {
+    titleEl.textContent = 'Your profile';
+    subEl.textContent   = "Add yourself to the deck. Other voters will see this card — you won't see your own.";
+  }
+
   descCount.textContent = `${descInput.value.length}/240`;
   shuffleAvatars(true);
   editModal.classList.remove('hidden');
