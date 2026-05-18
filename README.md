@@ -36,7 +36,8 @@ Open <http://localhost:3000> in a mobile-sized window (Chrome devtools → iPhon
 
 - **Frontend** — vanilla HTML/CSS/JS in `public/`, no build step. Mobile-first; layout was developed against the brief's **390 × 844 (iPhone-class) target viewport** and has no horizontal overflow or layout shift at that size. Swipe gestures use the Pointer Events API so the same handlers drive touch on mobile and mouse drag on desktop. A global `error`-capture handler swaps any failed `<img>` to an inline-SVG silhouette, so an offline DiceBear CDN can never produce a broken-image icon. Three top-level UI states: auth screen → deck view → results view.
 - **Backend** — Node + Express in `server/server.js`. Auth is a username/password sign-up flow with bcrypt-hashed passwords and opaque session tokens stored in SQLite; tokens are passed by the client in an `Authorization: Bearer …` header and persisted in `localStorage`. (The brief's example payload for `POST /vote` lists a client-supplied `sessionId`; we intentionally went further and put the session in a server-validated Bearer token instead, so the user identity on each write can't be spoofed by a hostile client.)
-- **Persistence** — SQLite via `better-sqlite3` at `data/swipematch.db` (auto-created on first run; ships with prebuilt binaries so no compiler toolchain is required). Tables: `users`, `sessions`, `items`, `votes`. Foreign keys are on; `votes` has `PRIMARY KEY (user_id, item_id)` so a duplicate vote is impossible at the schema level, and the writer uses `INSERT … ON CONFLICT DO UPDATE` so re-voting on the same item is treated as "change your mind" (the row is updated, never duplicated). This is the project's idempotency / dedup story end-to-end.
+- **Persistence** — SQLite via `better-sqlite3` at `data/swipematch.db` (auto-created on first run; ships with prebuilt binaries so no compiler toolchain is required). Tables: `users`, `sessions`, `items`, `votes`, `messages`. Foreign keys are on; `votes` has `PRIMARY KEY (user_id, item_id)` so a duplicate vote is impossible at the schema level, and the writer uses `INSERT … ON CONFLICT DO UPDATE` so re-voting on the same item is treated as "change your mind" (the row is updated, never duplicated). This is the project's idempotency / dedup story end-to-end. Schema migrations (e.g. adding `decision_ms` to `votes`, `created_by` to `items`) are applied in-place at boot time via `PRAGMA table_info` introspection.
+- **Realtime layer** — a single WebSocket server is attached to the same HTTP server at `/ws`. The upgrade handshake reads the Bearer token from the query string, validates it against the `sessions` table, and stashes the resolved `userId` on the socket. A per-user `Map<userId, Set<WebSocket>>` lets the server broadcast profile changes globally (`profile:updated` / `profile:deleted`), DM waves and chat messages point-to-point (`wave`, `message`), and ping read receipts back to the original sender (`message:read`). A 30-second ping/pong heartbeat drops zombie connections; the client side does exponential-backoff reconnect (1s → 30s cap) so a router blip or a wifi handoff doesn't strand the realtime UI.
 - **Why SQLite over Postgres/Mongo or a JSON file** — zero-admin, one file, transactional, fine through millions of votes. JSON-with-locking would have meant either losing votes to lost-update races or hand-rolling fsync-style write locks I can't defend on a 7-day timeline. Easy to swap for Postgres later (the only thing that touches the store is `db.js` and the prepared statements in `server.js`).
 - **Input validation** — every write endpoint type-checks and bounds-checks its payload before the DB sees it: `register` enforces `^[a-zA-Z0-9_-]{3,24}$` usernames + 4-char-min passwords; `vote` rejects unknown ids, non-string `itemId`, `choice ∉ {yes,no}`, self-votes, and clamps `decisionMs` to `[0, 3 600 000] ms`; `profile` caps name at 40 chars, bio at 240 chars, and only accepts `imageUrl` matching `^https://api\.dicebear\.com/…$`. `express.json` has an 8 KB body limit as a coarse DoS guard. The client is never trusted to compute aggregates — `/api/results` rebuilds them from the `votes` table on every call.
 
@@ -85,9 +86,9 @@ Open <http://localhost:3000> in a mobile-sized window (Chrome devtools → iPhon
 
 **Stretch (Section 3.2)**
 
-- [x] **Proper sign-in** — username + bcrypt-hashed password, opaque session tokens, persistent across reloads (beyond the "anonymous session id" the brief asked for)
-- [x] **User-published profiles** — any logged-in user can publish a profile (display name, bio, DiceBear avatar of their choice) that other users see in their deck. Backend filters the creator's own profile out of their `/api/items` and rejects self-votes with 400.
-- [x] **Tappable detail view** — clicking any row in the Results list opens a modal with the full description, global stats, the viewer's own vote, and a "send a wave" gesture
+- [x] **Proper sign-in** — username + bcrypt-hashed password, opaque session tokens, persistent across reloads (beyond the "anonymous session id" the brief asked for). New users are nudged straight into the profile editor on the first login with their display name pre-filled, so they join the deck before they start swiping.
+- [x] **User-published profiles** — any logged-in user can publish a profile (display name, bio, DiceBear avatar of their choice) that other users see in their deck. Backend filters the creator's own profile out of their `/api/items` and rejects self-votes with 400. The viewer can still click their own row in Results to see what the detail modal looks like from the outside (with the wave/chat buttons hidden, since waving at or messaging yourself is nonsense).
+- [x] **Tappable detail view** — clicking any row in the Results list opens a modal with the full description, global stats, the viewer's own vote, a "send a wave 👋" gesture, and a "send message 💬" CTA for user-owned profiles.
 - [x] Undo last swipe
 - [x] "My Matches" view (yes votes whose global yes-rate ≥ 60%)
 - [x] **Admin / seed script** — `npm run seed` re-seeds the 100 base profiles, and additionally reads `data/extra-items.json` if present so new items can be added with **zero code changes**. Format: `[{ "id": "x001", "name": "Mystery Box, ??", "description": "...", "imageUrl": "https://api.dicebear.com/…" }]`. Re-running the seed is idempotent (UPSERT by id).
@@ -99,7 +100,7 @@ Open <http://localhost:3000> in a mobile-sized window (Chrome devtools → iPhon
 
 ### 5.1 Frontend
 
-- **Mobile web app, correct at 390 × 844** — `public/style.css` is mobile-first with a `max-width: 480px` shell and uses flexbox so nothing overflows or shifts at the iPhone-14 viewport. Verified in Chrome devtools' device emulator.
+- **Mobile web app, correct at 390 × 844** — `public/style.css` is mobile-first with a `max-width: 480px` shell and uses flexbox so nothing overflows or shifts at the iPhone-14 viewport. Verified in Chrome devtools' device emulator. The topbar uses round 30px icon buttons (chat / profile / logout) so all three actions plus the avatar and username fit on the same row; the username collapses to just the avatar below 360px wide.
 - **Framework choice** — vanilla HTML/CSS/JS. No build step, no transpiler, no node_modules in the served bundle. Picked because the AI assistant ships better ungeneralized DOM code than React boilerplate at this scale.
 - **Touch + mouse** — `public/app.js` binds Pointer Events (`pointerdown`/`pointermove`/`pointerup`/`pointercancel`) once per top card. The same code path handles a finger drag on iOS Safari and a left-click drag on desktop Chrome.
 - **No layout shift / overflow / broken images** — fixed-aspect card wrapper prevents reflow when avatars load; sticky results header doesn't displace its container; all `<img>` tags fall back to an inline-SVG silhouette via a global capture-phase `error` handler, so a flaky CDN can't produce a broken-image icon.
@@ -120,21 +121,24 @@ Open <http://localhost:3000> in a mobile-sized window (Chrome devtools → iPhon
 
 ### 5.4 Quality bar
 
-- **Readable, organized code** — separated into `server/db.js` (schema + migrations), `server/server.js` (HTTP layer), `server/seed.js` (data generator), and three small files under `public/`. Prepared statements live in one `q` object; auth middleware is two small functions.
-- **Committed in logical chunks** — six commits by subsystem: scaffolding · SQLite data layer · Express API · HTML + CSS shell · client JS · docs. Run `git log --oneline` to see them.
+- **Readable, organized code** — separated into `server/db.js` (schema + migrations), `server/server.js` (HTTP + WS layer), `server/seed.js` (data generator), and three small files under `public/`. Prepared statements live in one `q` object; auth middleware is two small functions; the WS code has its own clearly-fenced section at the bottom of `server.js`.
+- **Committed in logical chunks** — `git log --oneline` tells a two-act story:
+  - **Act 1, foundation (6 commits, subsystem-by-subsystem):** scaffolding → SQLite data layer → Express API → HTML/CSS shell → client JS → docs.
+  - **Act 2, iterative feature builds (6 commits, one feature per commit):** auto-open profile editor on register → fix detail-modal bailing on the viewer's own profile → realtime WebSocket layer → fix Results-list live update path → 1:1 chat on top of the wave channel → topbar icon-button polish.
 - **README explains run + architecture + trade-offs** — *Quick start*, *Architecture*, and *Known gaps* sections above.
-- **No console errors on the happy path** — verified by hand on login → 20 swipes → undo → results → modal → profile edit → logout, both as a fresh user and as a returning user. The only network calls that can `console.error` are intentional ones logging unexpected vote/undo failures.
+- **No console errors on the happy path** — verified by hand on register → profile setup → 20 swipes → undo → results → modal → wave → chat → logout, both as a fresh user and as a returning user. The only network calls that can `console.error` are intentional ones logging unexpected vote/undo/wave failures.
 - **Basic input validation on the backend** — covered in the Architecture section's "Input validation" bullet.
 
 ## Multi-user demo
 
 1. `./setup.sh && ./start.sh`
-2. Browser tab 1 → `http://localhost:3000` → Sign up as `alice` / anything
-3. Vote on a handful of profiles
-4. Open an incognito tab → `http://localhost:3000` → Sign up as `bob` / anything
-5. Vote on the same profiles in different directions
-6. Both tabs → Results → "Most Divisive" — you'll see the items you disagreed on
-7. Each user's "My Matches" tab is private and reflects only their own yes votes
+2. Browser tab 1 → `http://localhost:3000` → Sign up as `alice` / anything. The profile editor opens automatically; pick an avatar, set bio, hit **Publish to deck**.
+3. Vote on a handful of profiles.
+4. Open an **incognito** tab → `http://localhost:3000` → Sign up as `bob` / anything. Same flow — publish a profile.
+5. Vote on the same profiles in different directions. Both tabs → Results → "Most Divisive" — you'll see the items you disagreed on. Each user's "My Matches" tab is private and reflects only their own yes votes.
+6. **Live profile updates:** Bob opens his profile editor and changes his bio/avatar → Alice's deck refreshes the new card in real time without a reload, and her Results view's row updates too.
+7. **Waves:** Alice clicks Bob's row in Results → **Send a wave 👋**. Bob immediately sees a slide-in toast at the top of his screen.
+8. **Chat:** Bob taps the wave toast (or the **Send message 💬** button in any profile's detail modal) → a chat sheet opens. He types and sends. Alice sees her unread badge bump on the topbar `💬` icon and a toast appears with the preview. Tapping either jumps Alice straight into the conversation.
 
 ## Known gaps / trade-offs
 
@@ -147,16 +151,16 @@ Open <http://localhost:3000> in a mobile-sized window (Chrome devtools → iPhon
 ```
 .
 ├── server/
-│   ├── db.js       # SQLite open + schema (users / sessions / items / votes)
-│   ├── server.js   # Express API + auth middleware + static host
-│   └── seed.js     # generates 100 items into the DB (idempotent UPSERT)
+│   ├── db.js       # SQLite open + schema (users / sessions / items / votes / messages) + in-place migrations
+│   ├── server.js   # Express REST API + WebSocket server + auth + static host
+│   └── seed.js     # generates 100 items into the DB (idempotent UPSERT) + extra-items.json hook
 ├── public/
-│   ├── index.html  # single page: auth view + main app
-│   ├── style.css   # mobile-first, 480px max
-│   └── app.js      # auth flow + swipe + view logic
-├── data/           # created on first run; holds swipematch.db
-├── setup.sh
-├── start.sh
+│   ├── index.html  # single page: auth view + main app + 4 modals (profile detail / profile editor / chat / chats list)
+│   ├── style.css   # mobile-first, 480px max, icon-button topbar, chat bubbles, toast stack
+│   └── app.js      # auth flow + swipe + view router + WS client + chat + profile editor + img fallback
+├── data/           # created on first run; holds swipematch.db (+ optional extra-items.json)
+├── setup.sh        # npm install + rebuild better-sqlite3 if platform mismatched + seed
+├── start.sh        # seed if empty, then launch the server
 ├── package.json
 ├── README.md
 └── AI_NOTES.md
