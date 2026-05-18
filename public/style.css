@@ -110,19 +110,23 @@ body {
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .user-chip {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 6px;
   background: rgba(255,255,255,0.06);
   border-radius: 999px;
-  padding: 4px 4px 4px 4px;
+  padding: 4px;
+  min-width: 0;
 }
 .user-avatar {
-  width: 24px; height: 24px; border-radius: 50%;
+  width: 26px; height: 26px; border-radius: 50%;
   background: #fff; flex-shrink: 0;
 }
 .user-name {
   font-size: 13px; font-weight: 600;
-  max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
 }
+/* Legacy text button — kept around just in case future buttons reuse it. */
 .user-logout {
   border: 0; cursor: pointer;
   background: rgba(255,255,255,0.08);
@@ -132,6 +136,29 @@ body {
   margin-left: 2px;
 }
 .user-logout:active { transform: scale(0.95); }
+
+/* Round icon button used in the topbar so three actions fit at 390px. */
+.icon-btn {
+  flex: 0 0 auto;
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.10);
+  color: var(--text);
+  cursor: pointer;
+  position: relative;
+  transition: background 120ms ease, transform 80ms ease;
+}
+.icon-btn:hover  { background: rgba(255,255,255,0.18); }
+.icon-btn:active { transform: scale(0.92); }
+.icon-btn svg    { width: 16px; height: 16px; display: block; }
+/* Drop the username on the smallest screens — the avatar already identifies
+   who's logged in and the buttons need the room. */
+@media (max-width: 360px) {
+  .user-name { display: none; }
+}
 
 .tabs {
   display: flex; gap: 4px; padding: 4px;
@@ -531,18 +558,21 @@ main { flex: 1; min-height: 0; position: relative; }
 /* --- Unread badge on the Messages topbar button -------------------------- */
 .messages-btn { position: relative; }
 .unread-badge {
-  display: inline-block;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  margin-left: 6px;
-  border-radius: 9px;
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
   background: var(--accent);
   color: #fff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  line-height: 18px;
+  line-height: 16px;
   text-align: center;
+  box-shadow: 0 0 0 2px var(--bg);
+  pointer-events: none;
 }
 
 /* --- CTA row inside the profile detail modal ---------------------------- */

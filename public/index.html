@@ -46,11 +46,16 @@
           <div class="user-chip">
             <img class="user-avatar" id="user-avatar" alt="" src="">
             <span class="user-name" id="user-name">—</span>
-            <button class="user-logout messages-btn" data-action="open-chats" aria-label="Open messages">
-              Messages<span id="unread-badge" class="unread-badge hidden">0</span>
+            <button class="icon-btn messages-btn" data-action="open-chats" aria-label="Messages" title="Messages">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+              <span id="unread-badge" class="unread-badge hidden">0</span>
             </button>
-            <button class="user-logout" data-action="edit-profile" aria-label="Edit my profile">Profile</button>
-            <button class="user-logout" data-action="logout"        aria-label="Log out">Log out</button>
+            <button class="icon-btn" data-action="edit-profile" aria-label="Edit my profile" title="Profile">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </button>
+            <button class="icon-btn" data-action="logout" aria-label="Log out" title="Log out">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </button>
           </div>
         </div>
         <nav class="tabs" role="tablist">
